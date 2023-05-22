@@ -1,8 +1,8 @@
 import random
-
+from translate import Translator
 import requests
 import telebot
-from bs4 import BeautifulSoup
+import re
 
 weather_url = "http://api.openweathermap.org/data/2.5/weather?q={}&appid={}"
 bot_token = "6150125244:AAE-nJdL9NAmMWdsr26HOA5y2xDJW7da56w"
@@ -32,15 +32,47 @@ def get_clothes_type(temp):
         return "Майка или купальник"
 
 
+def get_clothes_link(temp):
+    rng = random.randint(0, 1)
+    if temp < 0:
+        return get_random_jacket() + "\n" + get_random_hoodie()
+    elif temp < 10:
+        return get_random_light_jacket() + "\n" + get_random_hoodie()
+    elif temp < 20:
+        if rng == 0:
+            return get_random_hoodie()
+        else:
+            return get_random_light_jacket() + "\n" + get_random_tshirt()
+    elif temp < 30:
+        return get_random_tshirt()
+    else:
+        return get_random_maika()
+
+
 def get_shoes_type(temp):
     if temp < 0:
         return "Утеплённые ботинки"
     elif temp < 15:
         return "Кроссовки или ботинки"
     elif temp < 25:
-        return "Кроссовки или лёгкие ботинки"
+        return "Кроссовки"
     else:
         return "Лёгкая обувь или сандалии"
+
+
+def get_shoes_link(temp):
+    rng = random.randint(0, 1)
+    if temp < 0:
+        return get_random_boots()
+    elif temp < 15:
+        if rng == 0:
+            return get_random_boots()
+        else:
+            return get_random_sneakers()
+    elif temp < 25:
+        return get_random_sneakers()
+    else:
+        return get_random_slippers()
 
 
 def get_underwear_type(temp):
@@ -52,6 +84,24 @@ def get_underwear_type(temp):
         return "Шорты или легкие штаны"
     else:
         return "Шорты"
+
+
+def get_underwear_link(temp):
+    rng = random.randint(0, 1)
+    if temp < 0:
+        return get_random_pants() + "\n" + get_random_underwear()
+    elif temp < 10:
+        if rng == 0:
+            return get_random_pants() + "\n" + get_random_underwear()
+        else:
+            return get_random_pants()
+    elif temp < 20:
+        if rng == 0:
+            return get_random_shorts()
+        else:
+            return get_random_pants()
+    else:
+        return get_random_shorts()
 
 
 @bot.message_handler(commands=['start'])
@@ -69,61 +119,96 @@ def handle_message(message):
         clothes_type = get_clothes_type(temp)
         shoes_type = get_shoes_type(temp)
         underwear_type = get_underwear_type(temp)
+        if contains_english_letter(weather_desc) == 1:
+            weather_desc = translate_text(weather_desc)
+            i = 0
         response_msg = f"В городе {city} сейчас {weather_desc}. Температура {temp}°C, скорость ветра {wind_speed} м/с. \nРекомендуемая одежда: {clothes_type}. \nРекомендуемая обувь: {shoes_type}. \nРекомендуемая нижняя одежда: {underwear_type}."
         bot.reply_to(message, response_msg)
-
+        links = f"Ссылка на подборку верхней одежды: {get_clothes_link(temp)} \n Ссылка на подборку остальных предметов одежды: {get_underwear_link(temp)} \n Ссылка на подборку обуви: {get_shoes_link(temp)}"
+        bot.reply_to(message, links)
+        ending = f"Если вы хотите поменять город, то просто напишите его название"
+        bot.reply_to(message, ending)
     except:
         bot.reply_to(message,
                      "Извините, не удалось получить данные о погоде. Пожалуйста, попробуйте ещё раз с другим названием города.")
 
 
+def contains_english_letter(string):
+    pattern = r'[a-zA-Z]'
+    match = re.search(pattern, string)
+    if match:
+        return 1
+    else:
+        return 0
 
 
-def get_sneakers_url():
-    sneakers_url = 'https://www.asos.com/men/shoes-boots-trainers/sneakers/cat/?cid=4208&currentpricerange=5-535&nlid=mw|shoes|shop%20by%20product&page=1&refine=attribute_1047:97149&sort=freshness'
-    sneakers_response = requests.get(sneakers_url)
-    sneakers_soup = BeautifulSoup(sneakers_response.content, 'html.parser')
-    sneaker_links = sneakers_soup.find_all('a', class_='product-link')
-    sneakers_random_link = random.choice(sneaker_links)['href']
-    return sneakers_random_link
+def translate_text(text):
+    translator = Translator(to_lang="ru")
+    translation = translator.translate(text)
+    return translation
+
+def get_random_link(clothing_type):
+    with open('database.txt', 'r') as file:
+        lines = file.readlines()
+
+    links = []
+    current_type = None
+
+    for line in lines:
+        line = line.strip()
+        if line.endswith(':'):
+            current_type = line[:-1]
+        elif current_type == clothing_type:
+            links.append(line)
+
+    if links:
+        return random.choice(links)
+    else:
+        return None
 
 
-def get_pants_url():
-    pants_url = 'https://www.asos.com/men/pants-chinos/cat/?cid=4910&currentpricerange=5-495&nlid=mw%7Cclothing%7Cshop%20by%20product&page=1&refine=attribute_1047:97149&sort=freshness'
-    pants_response = requests.get(pants_url)
-    pants_soup = BeautifulSoup(pants_response.content, 'html.parser')
-    pants_links = pants_soup.find_all('a', class_='product-link')
-    pants_random_link = random.choice(pants_links)['href']
-    return pants_random_link
+def get_random_jacket():
+    return get_random_link('jacket')
 
 
-def get_jacket_url():
-    jacket_url = 'https://www.asos.com/men/jackets-coats/cat/?cid=3606&currentpricerange=5-815&nlid=mw|clothing|shop%20by%20product&page=1&refine=attribute_1047:97149&sort=freshness'
-    jacket_response = requests.get(jacket_url)
-    jacket_soup = BeautifulSoup(jacket_response.content, 'html.parser')
-    jacket_links = jacket_soup.find_all('a', class_='product-link')
-    jacket_random_link = random.choice(jacket_links)['href']
-    return jacket_random_link
+def get_random_light_jacket():
+    return get_random_link('light_jacket')
 
 
-def get_t_shirt_url():
-    t_shirt_url = 'https://www.asos.com/men/t-shirts-vests/cat/?cid=7616&currentpricerange=5-365&nlid=mw|clothing|shop%20by%20product&page=1&refine=attribute_1047:97149&sort=freshness'
-    t_shirt_response = requests.get(t_shirt_url)
-    t_shirt_soup = BeautifulSoup(t_shirt_response.content, 'html.parser')
-    tshirt_links = t_shirt_soup.find_all('a', class_='product-link')
-    t_shirt_random_link = random.choice(tshirt_links)['href']
-    return t_shirt_random_link
+def get_random_pants():
+    return get_random_link('pants')
 
 
-def get_shorts_url():
-    shorts_url = 'https://www.asos.com/men/shorts/cat/?cid=9267&currentpricerange=5-275&nlid=mw%7Cclothing%7Cshop%20by%20product&page=1&refine=attribute_1047:97149&sort=freshness'
-    shorts_response = requests.get(shorts_url)
-    shorts_soup = BeautifulSoup(shorts_response.content, 'html.parser')
-    shorts_links = shorts_soup.find_all('a', class_='product-link')
-    shorts_random_link = random.choice(shorts_links)['href']
-    return shorts_random_link
+def get_random_tshirt():
+    return get_random_link('t-shirt')
 
-print("asdasdsa")
-print(get_shorts_url())
+
+def get_random_shorts():
+    return get_random_link('shorts')
+
+
+def get_random_sneakers():
+    return get_random_link('sneakers')
+
+
+def get_random_underwear():
+    return get_random_link('underwear')
+
+
+def get_random_hoodie():
+    return get_random_link('hoodie')
+
+
+def get_random_slippers():
+    return get_random_link('slippers')
+
+
+def get_random_boots():
+    return get_random_link('boots')
+
+
+def get_random_maika():
+    return get_random_link('maika')
+
 
 bot.polling()
